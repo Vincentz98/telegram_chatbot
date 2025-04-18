@@ -4,7 +4,8 @@ from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 import asyncio
-import threading
+from threading import Thread
+import sys
 
 # Load environment variables
 load_dotenv()
@@ -15,36 +16,36 @@ st.set_page_config(page_title="Telegram Bot Status", page_icon="🤖")
 # Initialize session state
 if 'bot_running' not in st.session_state:
     st.session_state.bot_running = False
-    st.session_state.bot_thread = None
-
-def run_bot():
-    """Run the bot in a separate thread"""
-    async def start_bot():
-        try:
-            from bot import main
-            await main()
-        except Exception as e:
-            st.error(f"Bot Error: {str(e)}")
-
-    asyncio.run(start_bot())
 
 st.title("Telegram Bot Status Dashboard")
 
-# Add control buttons
-if not st.session_state.bot_running:
-    if st.button("Start Bot"):
-        st.session_state.bot_running = True
-        st.session_state.bot_thread = threading.Thread(target=run_bot)
-        st.session_state.bot_thread.start()
-        st.experimental_rerun()
-else:
-    st.success("Bot is running! 🚀")
-    if st.button("Stop Bot"):
+# Function to run the bot
+async def run_telegram_bot():
+    try:
+        from bot import main
+        await main()
+    except Exception as e:
+        st.error(f"Bot Error: {str(e)}")
         st.session_state.bot_running = False
-        if st.session_state.bot_thread:
-            # Note: This is a simple stop implementation
-            st.session_state.bot_thread = None
-        st.experimental_rerun()
+
+def start_bot_thread():
+    asyncio.run(run_telegram_bot())
+
+# Add control buttons
+col1, col2 = st.columns([1, 3])
+with col1:
+    if not st.session_state.bot_running:
+        if st.button("Start Bot"):
+            try:
+                st.session_state.bot_running = True
+                thread = Thread(target=start_bot_thread)
+                thread.start()
+                st.success("Starting bot...")
+            except Exception as e:
+                st.error(f"Failed to start bot: {str(e)}")
+                st.session_state.bot_running = False
+    else:
+        st.success("Bot is running! 🚀")
 
 # Display bot information
 st.markdown("""
