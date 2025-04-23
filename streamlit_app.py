@@ -1,10 +1,12 @@
 import streamlit as st
 import os
+from threading import Thread
+import asyncio
+from bot import main  # assuming main() in bot.py is your async bot function
 
 st.set_page_config(page_title="Telegram Bot Status", page_icon="🤖")
 st.title("Telegram Bot Status Dashboard")
 
-# Check status from file
 status_file = "bot_status.txt"
 if os.path.exists(status_file):
     with open(status_file, "r") as f:
@@ -12,6 +14,7 @@ if os.path.exists(status_file):
 else:
     status = "unknown"
 
+# Display current status
 if status == "running":
     st.success("✅ Bot is running!")
 elif status == "stopped":
@@ -19,8 +22,14 @@ elif status == "stopped":
 else:
     st.warning("❓ Bot status unknown.")
 
-st.markdown("""
-### Instructions
-- Start your bot using `python bot.py` in a separate terminal.
-- Refresh this dashboard to see its current status.
-""")
+# Start bot from Streamlit
+def start_bot_thread():
+    asyncio.run(main())  # run the Telegram bot async main
+
+if "bot_running" not in st.session_state:
+    st.session_state.bot_running = False
+
+if st.button("Start Bot") and not st.session_state.bot_running:
+    st.session_state.bot_running = True
+    Thread(target=start_bot_thread).start()
+    st.success("🚀 Starting bot... Refresh to check status.")
