@@ -3,7 +3,7 @@ import logging
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-import requests
+import requests  # For Ollama API calls
 
 # Load environment variables
 load_dotenv()
@@ -24,30 +24,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /start is issued."""
     user = update.effective_user
     await update.message.reply_html(
-        f"Hi {user.mention_html()}! 👋\n\n"
-        f"I'm your AI chat companion powered by Ollama. I can help you with:\n"
-        f"• Questions and explanations\n"
-        f"• Writing and analysis\n"
-        f"• General conversation\n\n"
-        f"Feel free to ask me anything!"
+        f"Hi {user.mention_html()}! I'm your AI chat companion powered by Ollama. I provide detailed, accurate responses to your questions. Feel free to start a conversation!"
     )
-    # Initialize conversation history for new users
     conversation_history[user.id] = []
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /help is issued."""
     help_text = """
-Here's how to use me:
-• Just send any message to start chatting
-• Use /start to restart our conversation
-• Use /clear to clear chat history
-• Use /help to see this message again
+I can help you with:
+- Detailed explanations of complex topics
+- Programming and technical questions
+- General knowledge queries
+- Writing and analysis
 
-I can help with:
-• Answering questions
-• Explaining concepts
-• Writing assistance
-• General conversation
+Commands:
+/start - Start a new conversation
+/help - Show this help message
+/clear - Clear conversation history
     """
     await update.message.reply_text(help_text)
 
@@ -55,7 +48,7 @@ async def clear_history(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     """Clear the conversation history for the user."""
     user = update.effective_user
     conversation_history[user.id] = []
-    await update.message.reply_text("Conversation history has been cleared! 🧹")
+    await update.message.reply_text("Conversation history has been cleared!")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle incoming messages and generate responses using Ollama."""
@@ -92,7 +85,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         response = requests.post(
             OLLAMA_API_URL,
             json={
-                "model": "mistral",
+                "model": "mistral",  # You can change this to other models like "llama2" or "deepseek-coder"
                 "messages": messages,
                 "stream": False
             }
@@ -110,30 +103,32 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             {"role": "assistant", "content": ai_response}
         ])
 
-        # Limit conversation history
+        # Limit conversation history to last 10 messages (5 exchanges)
         if len(conversation_history[user.id]) > 10:
             conversation_history[user.id] = conversation_history[user.id][-10:]
 
     except Exception as e:
         logger.error(f"Error generating response: {str(e)}")
         await update.message.reply_text(
-            "I apologize, but I encountered an error. Please try again or use /start to restart our conversation."
+            "I apologize, but I encountered an error while processing your message. Please try again."
         )
 
-async def main() -> None:
+def main() -> None:
     """Start the bot."""
-    # Create the Application
-    application = Application.builder().token(os.getenv('TELEGRAM_BOT_TOKEN')).build()
+    with open("bot_status.txt", "w") as f:
+        f.write("running")
+    
+    try:
+        application = Application.builder().token(os.getenv('TELEGRAM_BOT_TOKEN')).build()
+        application.add_handler(CommandHandler("start", start))
+        application.add_handler(CommandHandler("help", help_command))
+        application.add_handler(CommandHandler("clear", clear_history))
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+        application.run_polling(allowed_updates=Update.ALL_TYPES)
+    finally:
+        with open("bot_status.txt", "w") as f:
+            f.write("stopped")
 
-    # Add handlers
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("clear", clear_history))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    # Start the Bot
-    await application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == '__main__':
-    import asyncio
-    asyncio.run(main()) 
+    main() 
